@@ -7,13 +7,13 @@ import telebot
 from threading import Thread
 
 from order_sender.order_sender import OrderSender
-from settings import logger
+from settings import logger, token
 from parser_handler.parser import Parser
 import random
 
 db = Db()
 
-bot = telebot.TeleBot(token="2008559773:AAFSNAj-Cnh64tQ2n3vqmTtZHapf72fBEaU")
+bot = telebot.TeleBot(token=token)
 
 admin_keyboard = telebot.types.ReplyKeyboardMarkup(True)
 

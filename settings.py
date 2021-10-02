@@ -6,6 +6,8 @@ root_path = os.getcwd()
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger("app")
 
+token = ""
+
 login = ""
 password = ""
 email = ""
