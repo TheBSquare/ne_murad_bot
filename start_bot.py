@@ -6,6 +6,8 @@ from database_handler.db import Db
 import telebot
 from threading import Thread
 
+from order_sender.order_sender import OrderSender
+from settings import logger
 from parser_handler.parser import Parser
 import random
 
@@ -37,9 +39,20 @@ images = glob.glob("./images/*")
 
 
 def get_users():
-    token = db.create_connection()
-    data = db.get_users(token)
-    db.close_connection(token)
+    try:
+        token = db.create_connection()
+        data = db.get_users(token)
+        db.close_connection(token)
+    except Exception as err:
+        logger.error(f"Error while getting users from db, {err = }")
+
+    for user in data:
+        try:
+            data[user]["chat_id"] = user
+            logger.info(f"Got user {data[user]}")
+        except Exception as err:
+            logger.error(f"Error while processing, {err = }")
+
     return data
 
 
@@ -538,198 +551,50 @@ def register_admin(message):
             bot.register_next_step_handler(message, register_admin)
 
 
-def orders_sender():
-
-    parsed_orders = set()
-
+def start_order_sender():
     parser = Parser()
     parser.start()
 
-    parser.set_element_value("filter_status", "0")
-    parser.set_element_value("date_field", "0")
-    parser.set_element_value("payment", "")
+    order_sender = OrderSender(bot, parser)
+    for filter_ in [
+        ["filter_status", "0"],
+        ["date_field", "0"],
+        ["payment", ""]
+    ]: parser.set_element_value(*filter_)
 
-    print("Setting up date")
-    time.sleep(.35)
-    last_order = parser.get_last_order()
-    print(f"Found last order {last_order}")
-    date_parts = last_order[2].split(".")
-    created_time = f"{date_parts[0]}.{date_parts[1]}.20{date_parts[2]}T{last_order[3]}"
-    print(f"Last order time {created_time}")
-    last_datetime = datetime.strptime(created_time, "%d.%m.%YT%H:%M") - timedelta(minutes=15)
+    is_marked = False
 
-    tries = 20
     while True:
+        date_start = parser.set_time_from_order(parser.get_last_order(), "lower", timedelta(hours=1))
 
-        try:
-            date_future = datetime.now() + timedelta(days=2)
-            lower_date = f'{last_datetime.strftime("%Y-%m-%dT%H:%M")}'
-            upper_date = f'{date_future.strftime("%Y-%m-%d")}T00:00'
-            print(f"Date from {lower_date} to {upper_date}")
+        if not date_start is None:
+            date_end = datetime.now() + timedelta(days=3)
+            parser.set_element_value("datetime_end", f'{date_end.strftime("%Y-%m-%d")}T00:00')
 
-            parser.set_element_value("datetime_start", lower_date)
-            parser.set_element_value("datetime_end", upper_date)
-            time.sleep(.2)
-
+        if parser.check_error() and not parser.update():
+            logger.info(f"Restarting bot, error no orders")
             try:
-                parser.update()
-            except Exception as err:
-                print(str(err).replace("\n", ""))
-
-            if not parser.check_error():
-                raise Exception("Invalid requests")
-            print("update page")
-        except Exception as err:
-            while True:
-                try:
-                    print("restarting")
-                    try:
-                        parser.driver.quit()
-                    except Exception as err:
-                        pass
-
-                    parser.start()
-
-                    parser.set_element_value("filter_status", "0")
-                    parser.set_element_value("date_field", "0")
-                    parser.set_element_value("payment", "")
-
-                    print("Setting up date")
-                    time.sleep(1)
-                    last_order = parser.get_last_order()
-                    date_parts = last_order[2].split(".")
-                    created_time = f"{date_parts[0]}.{date_parts[1]}.20{date_parts[2]}T{last_order[3]}"
-                    last_datetime = datetime.strptime(created_time, "%d.%m.%YT%H:%M") - timedelta(minutes=35)
-
-                    try:
-                        parser.set_element_value("datetime_start", lower_date)
-                        parser.set_element_value("datetime_end", upper_date)
-                    except Exception as err:
-                        print(err)
-
-                    time.sleep(.15)
-
-                    print("update page")
-                    try:
-                        parser.update()
-                        break
-                    except Exception as err:
-                        print(str(err).replace("\n", ""))
-                    break
-                except Exception as err:
-                    print(err)
-
-        while True:
-            orders = parser.get_orders()
-            if tries > 0:
-                if len(orders) == 0:
-                    tries -= 1
-                    print("no orders")
-                    continue
-            else:
-                break
-
-            found = False
-            for i, order in enumerate(orders[::-1]):
-                try:
-                    data_id = order.get_attribute("data-guid")
-                    if data_id is None:
-                        continue
-                    elif data_id in parsed_orders:
-                        print(order.text)
-                        if not found:
-                            try:
-                                cells = [cell.text for cell in order.find_elements(By.CSS_SELECTOR, "td")]
-                                date_parts = cells[2].split(".")
-                                created_time = f"{date_parts[0]}.{date_parts[1]}.20{date_parts[2]}T{cells[3]}"
-                                if not found:
-                                    last_datetime = datetime.strptime(created_time, "%d.%m.%YT%H:%M") - timedelta(minutes=35)
-                                    found = True
-                            except Exception as err:
-                                print(err)
-                    elif data_id not in parsed_orders:
-
-                        parsed_orders.add(data_id)
-                        cells = [cell.text for cell in order.find_elements(By.CSS_SELECTOR, "td")]
-                        date_parts = cells[2].split(".")
-                        created_time = f"{date_parts[0]}.{date_parts[1]}.20{date_parts[2]}T{cells[3]}"
-
-                        if not found:
-                            try:
-                                last_datetime = datetime.strptime(created_time, "%d.%m.%YT%H:%M") - timedelta(minutes=35)
-                                found = True
-                            except Exception as err:
-                                print(err)
-
-                        data = {
-                            "time": created_time,
-                            "licence_plate": cells[10],
-                            "pickup_place": cells[8],
-                            "destination_place": cells[9],
-                            "type": cells[15]
-                        }
-
-                        print(f"{i + 1}. {data}")
-
-                        for user in users.copy():
-                            user_ = users[user]
-                            if user_["rule"] == "driver" and user_["taxi_id"] == data['licence_plate']:
-                                for x in range(1):
-                                    try:
-                                        string = "Адрес (от): {}\n" \
-                                                 "Адрес (куда): {}\n" \
-                                                 "Способ оплаты: {}\n" \
-                                                 "Номер машины: {}\n" \
-                                                 "Сообщение удалиться через: {}"
-
-                                        message = bot.send_message(user, string.format(
-                                            data['pickup_place'], data['destination_place'], data['type'], data['licence_plate'], 30)
-                                        )
-                                        remove_message(message, 30, data, string)
-                                        break
-                                    except Exception as err:
-                                        print(err)
-                                        time.sleep(.1)
-
-                            elif user_["rule"] == "admin" and user_["is_thread"]:
-                                for x in range(1):
-                                    try:
-                                        string = "Адрес (от): {}\n" \
-                                                 "Адрес (куда): {}\n" \
-                                                 "Способ оплаты: {}\n" \
-                                                 "Номер машины: {}\n" \
-                                                 "Сообщение удалиться через: {}"
-
-                                        message = bot.send_message(user, string.format(
-                                            data['pickup_place'], data['destination_place'], data['type'], data['licence_plate'], 30)
-                                        )
-                                        remove_message(message, 30, data, string)
-                                        break
-                                    except Exception as err:
-                                        print(err)
-                                        time.sleep(.1)
-
-                except Exception as err:
-                    str_err = str(err).replace("\n", "")
-                    print(f'err, {str_err} {order}')
-
-            break
-
-
-def remove_message(message, remove_time, data, string):
-    def remove():
-        for x in range(remove_time, 0, -5):
-            try:
-                bot.edit_message_text(chat_id=message.chat.id, message_id=message.message_id, text=string.format(
-                    data['pickup_place'], data['destination_place'], data['type'], data['licence_plate'], x)
-                )
+                parser.driver.quit()
             except Exception as err:
                 pass
-            time.sleep(5)
-        bot.delete_message(message.chat.id, message.message_id)
 
-    thread = Thread(target=remove)
-    thread.start()
+            parser.start()
+
+            for filter_ in [
+                ["filter_status", "0"],
+                ["date_field", "0"],
+                ["payment", ""]
+            ]: parser.set_element_value(*filter_)
+            is_marked = False
+            continue
+
+        if not is_marked:
+            is_marked = True
+            order_sender.mark_old_orders(orders=parser.get_orders())
+
+        orders = parser.get_orders()
+        orders = order_sender.process_orders(users, orders)
+        order_sender.send_orders(users, orders)
 
 
 def update_bot_chats():
@@ -757,5 +622,5 @@ def update_bot_chats():
 if __name__ == '__main__':
     users = get_users()
     update_bot_chats()
-    Thread(target=orders_sender).start()
-    bot.polling()
+    Thread(target=start_order_sender).start()
+    bot.polling(none_stop=True, timeout=123)
