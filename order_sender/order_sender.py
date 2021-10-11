@@ -95,15 +95,6 @@ class OrderSender:
         message = self.send_message(data, user)
         Thread(target=vanishing_part, args=(message.message_id, )).start()
 
-    @staticmethod
-    def create_pool(threads):
-        try:
-            pool = Pool(threads)
-            logger.info(f"Created pool, {threads = }")
-            return pool
-        except Exception as err:
-            logger.error(f"Error while creating pool, {err = }")
-
     def send_orders(self, users, orders):
 
         for order in orders:

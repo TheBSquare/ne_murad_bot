@@ -8,7 +8,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver import Chrome, Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support import expected_conditions as EC
-from settings import root_path, logger, login, password, company_number, email, driver_type
+from settings import root_path, logger, driver_type
 import os
 from bs4 import BeautifulSoup
 
@@ -28,27 +28,29 @@ class Parser:
     main_link = "https://lk.taximeter.yandex.ru/report/company/"
     parse_link = "https://lk.taximeter.yandex.ru/report/company/"
 
-    username = login
-    password = password
-    reserve_email = email
+    driver_path = f"{os.path.join(root_path, 'drivers', driver_type)}"
 
-    # }[input("Drivers\n1. chromedriver_win.exe\n2. chromedriver_linux\nEnter the number of the driver: ")]
-    driver_path = f"{os.path.join(root_path, driver_type)}"
+    def __init__(self, name, login, password, email, company_number):
+        self.name = name
+        self.username = login
+        self.password = password
+        self.reserve_email = email
+        self.company_number = company_number
 
     def start(self):
         logger.info("Staring browser")
         try:
             subprocess.run([f"sudo chmod +x {self.driver_path}"], check=True)
         except Exception as err:
-            logger.warning(f"Cant set chmod to driver, {err = }")
+            logger.warning(f"{self.name}. Cant set chmod to driver, {err = }")
 
         self.driver = Chrome(executable_path=self.driver_path, options=self.options)
-        logger.info("Getting page")
+        logger.info(f"{self.name}. Getting page")
         self.driver.get(self.main_link)
         self.wait = WebDriverWait(self.driver, 30, poll_frequency=.3, ignored_exceptions=[ElementNotVisibleException, ElementNotSelectableException])
-        logger.info("Checking if logged in")
+        logger.info(f"{self.name}. Checking if logged in")
         self.login()
-        logger.info("Logged in")
+        logger.info(f"{self.name}. Logged in")
         self.update_button = self.wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#btn-update")))
 
     def set_time_from_order(self, order, bound, delta):
@@ -61,18 +63,18 @@ class Parser:
 
             self.set_element_value(filter_name[bound], date.strftime("%Y-%m-%dT%H:%M"))
         except Exception as err:
-            logger.error(f"Error while setting date from order {date = }, {err = }")
+            logger.error(f"{self.name}. Error while setting date from order {date = }, {err = }")
 
     def login(self):
         if "login" in self.driver.current_url:
             try:
                 try:
                     link = self.driver.find_element(By.CSS_SELECTOR, "form > div > a")
-                    logger.info("Trying logging in")
+                    logger.info(f"{self.name}. Trying logging in")
                 except Exception as err:
                     raise Exception("Companies")
 
-                logger.info(f"Redirecting to {link.get_attribute('href')}")
+                logger.info(f"{self.name}. Redirecting to {link.get_attribute('href')}")
 
                 link.click()
 
@@ -88,7 +90,7 @@ class Parser:
                 tries = 15
                 passed_challenge = False
                 while tries > 0:
-                    logger.info(f"Authentication, {tries = }")
+                    logger.info(f"{self.name}. Authentication, {tries = }")
                     if "https://lk.taximeter.yandex.ru" in self.driver.current_url:
                         raise Exception("Companies")
                     elif not passed_challenge and "https://passport.yandex.ru/auth/challenge" in self.driver.current_url:
@@ -100,34 +102,45 @@ class Parser:
                     tries -= 1
 
             except Exception as err:
-                if "Companies" == str(err):
-                    logger.info("Choosing company")
-
-                    company_button = self.wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, f"form > button:nth-child({company_number})")))
-                    logger.info(f"Choose company {company_button.text}")
-                    company_button.click()
-
-                    time.sleep(.3)
-
-                    logger.info(f"Redirecting to {self.parse_link}")
-
-                    self.driver.get(self.parse_link)
-
-                    logger.info(f"Waiting till page be loaded")
-                    self.wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.request-error")))
-                    logger.info(f"Patching website")
+                if self.company_number < 0:
+                    logger.info(f"{self.name}. Patching website")
                     self.driver.execute_script('table1.datagrid({ url: "/report/items/company/" });')
-                    logger.info(f"Updating page")
+                    logger.info(f"{self.name}. Updating page")
                     while True:
                         try:
                             self.update()
                             time.sleep(1)
                             break
                         except Exception as err:
-                            print(str(err).replace("\n", ""))
+                            logger.error(f"{self.name}. {err = }")
 
-                else:
-                    raise Exception(err)
+                elif "Companies" == str(err):
+                    logger.info(f"{self.name}. Choosing company")
+
+                    company_button = self.wait.until(EC.visibility_of_element_located(
+                        (By.CSS_SELECTOR, f"form > button:nth-child({self.company_number})")
+                    ))
+                    logger.info(f"{self.name}. Choose company {company_button.text}")
+                    company_button.click()
+
+                    time.sleep(.3)
+
+                    logger.info(f"{self.name}. Redirecting to {self.parse_link}")
+
+                    self.driver.get(self.parse_link)
+
+                    logger.info(f"{self.name}. Waiting till page be loaded")
+                    self.wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "div.request-error")))
+                    logger.info(f"{self.name}. Patching website")
+                    self.driver.execute_script('table1.datagrid({ url: "/report/items/company/" });')
+                    logger.info(f"{self.name}. Updating page")
+                    while True:
+                        try:
+                            self.update()
+                            time.sleep(1)
+                            break
+                        except Exception as err:
+                            logger.error(f"{self.name}. {err = }")
 
     def check_error(self):
         try:
@@ -138,7 +151,7 @@ class Parser:
             except Exception as err:
                 return True
         except Exception as err:
-            logger.error(f"Error while checking, {err = }")
+            logger.error(f"{self.name}. Error while checking, {err = }")
             return True
 
     def get_orders(self):
@@ -150,31 +163,26 @@ class Parser:
                     if not row.get("data-guid") is None:
                         orders.append(row)
                 except Exception as err:
-                    logger.warning(f"Error while getting order, {err = }")
+                    logger.warning(f"{self.name}. Error while getting order, {err = }")
         except Exception as err:
-            logger.error(f"Error while getting orders from page, {err = }")
-        logger.info(f"Found {len(orders)} orders")
+            logger.error(f"{self.name}. Error while getting orders from page, {err = }")
+        logger.info(f"{self.name}. Found {len(orders)} orders")
         return orders
 
     def update(self):
         for x in range(4):
             try:
-                logger.info(f"Trying to update, try = {x}")
+                logger.info(f"{self.name}. Trying to update, try = {x}")
                 self.wait = WebDriverWait(self.driver, 30, poll_frequency=.3, ignored_exceptions=[ElementNotVisibleException, ElementNotSelectableException])
                 self.update_button = self.wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#btn-update")))
                 self.update_button.click()
-                logger.info(f"Updated successfully")
+                logger.info(f"{self.name}. Updated successfully")
                 time.sleep(.5)
                 return True
             except Exception as err:
                 pass
-        logger.error(f"Cant update, some error with website")
+        logger.error(f"{self.name}. Cant update, some error with website")
         return False
-
-    def check_logged_in(self):
-        if "login" in self.driver.current_url:
-            print("Need to be logged in!")
-            raise Exception("Not Logged in!")
 
     def set_element_value(self, filter_name, value):
         try:
@@ -190,9 +198,9 @@ class Parser:
                 raise Exception("No such filter")
             else:
                 self.driver.execute_script("arguments[0].value=arguments[1]", filter_, value)
-            logger.info(f"Set filter {filter_name} to value {value}")
+            logger.info(f"{self.name}. Set filter {filter_name} to value {value}")
         except Exception as err:
-            logger.error(f"Got error while setting filter {filter_name} to {value = }")
+            logger.error(f"{self.name}. Got error while setting filter {filter_name} to {value = }")
             return
 
     def get_last_order(self):
@@ -200,9 +208,11 @@ class Parser:
             last_order = list(self.get_orders())[-1]
             try:
                 string = last_order.text.replace('\n', '')
-                logger.info(f"Found last order {string}")
+                logger.info(f"{self.name}. Found last order {string}")
                 return [cell.text for cell in last_order.select("td")]
             except Exception as err:
-                logger.error(f"Error while getting data from order, {err = }")
+                logger.error(f"{self.name}. Error while getting data from order, {err = }")
+                return None
         except Exception as err:
-            logger.error(f"Error while getting last order, {err = }")
+            logger.error(f"{self.name}. Error while getting last order, {err = }")
+            return None

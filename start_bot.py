@@ -1,13 +1,17 @@
 import glob
 import time
 from datetime import datetime, timedelta
+from logging import Formatter, FileHandler
+
 from selenium.webdriver.common.by import By
 from database_handler.db import Db
 import telebot
 from threading import Thread
 
+from dispatcher import Dispatcher
+from dispatcher_manager import DispatcherManager
 from order_sender.order_sender import OrderSender
-from settings import logger, token
+from settings import logger, token, logs_file_change_delay
 from parser_handler.parser import Parser
 import random
 
@@ -68,7 +72,7 @@ def start_message(message):
                 bot.send_message(message.chat.id, f'Извини но твой айди не в базе данных ({chat_id})')
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
     elif user["rule"] == "driver":
@@ -77,14 +81,15 @@ def start_message(message):
                 message = bot.send_message(message.chat.id, 'Яххаааа, баля 👋. Добро пожаловать братишка')
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         try:
             yaha_image = open(random.choice(images), "rb")
             message = bot.send_photo(message.chat.id, yaha_image)
         except Exception as err:
-            print(err)
+            logger.error(f"Error while sending photo, {err = }")
+
         time.sleep(3)
 
     elif user["rule"] == "admin":
@@ -94,14 +99,14 @@ def start_message(message):
                 message = bot.send_message(message.chat.id, 'Здарова, бро!', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         try:
             yaha_image = open(random.choice(images), "rb")
             message = bot.send_photo(message.chat.id, yaha_image)
         except Exception as err:
-            print(err)
+            logger.error(f"Error while sending photo, {err = }")
 
         bot.register_next_step_handler(message, admin_panel)
 
@@ -113,7 +118,7 @@ def admin_panel(message):
                 message = bot.send_message(message.chat.id, 'Кого добавить?', reply_markup=add_users_keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, register_user)
@@ -128,7 +133,7 @@ def admin_panel(message):
                         message = bot.send_message(message.chat.id, f'{i}. {user} - {user_["taxi_id"]} - водитель')
                         break
                     except Exception as err:
-                        print(err)
+                        logger.error(f"Error while sending message, {err = }")
                         time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -143,7 +148,7 @@ def admin_panel(message):
                         message = bot.send_message(message.chat.id, f'{i}. {user} - {user_["taxi_id"]} - админ')
                         break
                     except Exception as err:
-                        print(err)
+                        logger.error(f"Error while sending message, {err = }")
                         time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -153,7 +158,7 @@ def admin_panel(message):
                 message = bot.send_message(message.chat.id, f'Введи номер айди чата для удаления.', reply_markup=stop_keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, delete_user)
@@ -171,7 +176,7 @@ def admin_panel(message):
                 message = bot.send_message(message.chat.id, string, reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -190,7 +195,7 @@ def admin_panel(message):
                 message = bot.send_message(message.chat.id, string, reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -202,14 +207,14 @@ def admin_panel(message):
                 message = bot.send_message(message.chat.id, 'Здарова, бро!', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         try:
             yaha_image = open(random.choice(images), "rb")
             message = bot.send_photo(message.chat.id, yaha_image)
         except Exception as err:
-            print(err)
+            logger.error(f"Error while sending photo, {err = }")
 
         bot.register_next_step_handler(message, admin_panel)
     else:
@@ -219,7 +224,7 @@ def admin_panel(message):
                 bot.delete_message(message.chat.id, message.message_id)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
 
@@ -233,7 +238,7 @@ def delete_user(message):
                 message = bot.send_message(message.chat.id, 'Возвращаю в меню', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -244,14 +249,14 @@ def delete_user(message):
                 message = bot.send_message(message.chat.id, 'Здарова, бро!', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         try:
             yaha_image = open(random.choice(images), "rb")
             message = bot.send_photo(message.chat.id, yaha_image)
         except Exception as err:
-            print(err)
+            logger.error(f"Error while sending photo, {err = }")
 
         bot.register_next_step_handler(message, admin_panel)
     else:
@@ -263,7 +268,7 @@ def delete_user(message):
                     message = bot.send_message(message.chat.id, 'Айди чата должен содержать только цифры. Введи номер айди чата для удаления')
                     break
                 except Exception as err:
-                    print(err)
+                    logger.error(f"Error while sending message, {err = }")
                     time.sleep(.2)
 
             bot.register_next_step_handler(message, delete_user)
@@ -275,7 +280,7 @@ def delete_user(message):
                     message = bot.send_message(message.chat.id, 'Айди чата не в списке пользователей. Введи номер айди чата для удаления')
                     break
                 except Exception as err:
-                    print(err)
+                    logger.error(f"Error while sending message, {err = }")
                     time.sleep(.2)
 
             bot.register_next_step_handler(message, delete_user)
@@ -297,7 +302,7 @@ def delete_user(message):
                 message = bot.send_message(message.chat.id, string, reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -310,7 +315,7 @@ def register_user(message):
                 message = bot.send_message(message.chat.id, 'Введи номер чата', reply_markup=stop_keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, register_admin)
@@ -321,14 +326,14 @@ def register_user(message):
                 message = bot.send_message(message.chat.id, 'Здарова, бро!', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         try:
             yaha_image = open(random.choice(images), "rb")
             message = bot.send_photo(message.chat.id, yaha_image)
         except Exception as err:
-            print(err)
+            logger.error(f"Error while sending photo, {err = }")
 
         bot.register_next_step_handler(message, admin_panel)
     elif "Добавить водителя" in message.text:
@@ -337,7 +342,7 @@ def register_user(message):
                 message = bot.send_message(message.chat.id, 'Нужно ввести id телеграмм пользователя, номер авто водителя через запятую (12123124, Е862УЗ123)', reply_markup=stop_keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, register_driver)
@@ -348,7 +353,7 @@ def register_user(message):
                 message = bot.send_message(message.chat.id, 'Возвращаю в меню', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -366,7 +371,7 @@ def register_driver(message):
                 message = bot.send_message(message.chat.id, 'Возвращаю в меню', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -377,14 +382,14 @@ def register_driver(message):
                 message = bot.send_message(message.chat.id, 'Здарова, бро!', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         try:
             yaha_image = open(random.choice(images), "rb")
             message = bot.send_photo(message.chat.id, yaha_image)
         except Exception as err:
-            print(err)
+                logger.error(f"Error while sending photo, {err = }")
 
         bot.register_next_step_handler(message, admin_panel)
     elif len(data) != 2:
@@ -393,7 +398,7 @@ def register_driver(message):
                 message = bot.send_message(message.chat.id, 'Неправильно введены данные', reply_markup=stop_keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, register_driver)
@@ -409,7 +414,7 @@ def register_driver(message):
                         message = bot.send_message(message.chat.id, 'Такой пользователь уже есть', reply_markup=stop_keyboard)
                         break
                     except Exception as err:
-                        print(err)
+                        logger.error(f"Error while sending message, {err = }")
                         time.sleep(.2)
 
                 bot.register_next_step_handler(message, register_driver)
@@ -434,7 +439,7 @@ def register_driver(message):
                     message = bot.send_message(message.chat.id, string, reply_markup=keyboard)
                     break
                 except Exception as err:
-                    print(err)
+                    logger.error(f"Error while sending message, {err = }")
                     time.sleep(.2)
 
             bot.register_next_step_handler(message, admin_panel)
@@ -445,7 +450,7 @@ def register_driver(message):
                     message = bot.send_message(message.chat.id, 'Айди телеграм чата должен содержать только цифры', reply_markup=stop_keyboard)
                     break
                 except Exception as err:
-                    print(err)
+                    logger.error(f"Error while sending message, {err = }")
                     time.sleep(.2)
 
             bot.register_next_step_handler(message, register_admin)
@@ -459,7 +464,7 @@ def register_admin(message):
                 message = bot.send_message(message.chat.id, 'Возвращаю в меню', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         bot.register_next_step_handler(message, admin_panel)
@@ -470,14 +475,14 @@ def register_admin(message):
                 message = bot.send_message(message.chat.id, 'Здарова, бро!', reply_markup=keyboard)
                 break
             except Exception as err:
-                print(err)
+                logger.error(f"Error while sending message, {err = }")
                 time.sleep(.2)
 
         try:
             yaha_image = open(random.choice(images), "rb")
             message = bot.send_photo(message.chat.id, yaha_image)
         except Exception as err:
-            print(err)
+            logger.error(f"Error while sending photo, {err = }")
 
         bot.register_next_step_handler(message, admin_panel)
     else:
@@ -490,7 +495,7 @@ def register_admin(message):
                         message = bot.send_message(message.chat.id, 'Такой пользователь уже есть')
                         break
                     except Exception as err:
-                        print(err)
+                        logger.error(f"Error while sending message, {err = }")
                         time.sleep(.2)
 
                 bot.register_next_step_handler(message, register_driver)
@@ -516,7 +521,7 @@ def register_admin(message):
                             message = bot.send_message(message.chat.id, string, reply_markup=keyboard)
                             break
                         except Exception as err:
-                            print(err)
+                            logger.error(f"Error while sending message, {err = }")
                             time.sleep(.2)
 
                     bot.register_next_step_handler(message, admin_panel)
@@ -532,7 +537,7 @@ def register_admin(message):
                                 message = bot.send_message(message.chat.id, string, reply_markup=keyboard)
                                 break
                             except Exception as err:
-                                print(err)
+                                logger.error(f"Error while sending message, {err = }")
                                 time.sleep(.2)
 
                         bot.register_next_step_handler(message, admin_panel)
@@ -545,82 +550,54 @@ def register_admin(message):
                     message = bot.send_message(message.chat.id, 'Айди телеграм чата должен содержать только цифры')
                     break
                 except Exception as err:
-                    print(err)
+                    logger.error(f"Error while sending message, {err = }")
                     time.sleep(.2)
 
             bot.register_next_step_handler(message, register_admin)
 
 
-def start_order_sender():
-    parser = Parser()
-    parser.start()
-
-    order_sender = OrderSender(bot, parser)
-    for filter_ in [
-        ["filter_status", "0"],
-        ["date_field", "0"],
-        ["payment", ""]
-    ]: parser.set_element_value(*filter_)
-
-    is_marked = False
-
-    while True:
-        date_start = parser.set_time_from_order(parser.get_last_order(), "lower", timedelta(hours=1))
-
-        if not date_start is None:
-            date_end = datetime.now() + timedelta(days=3)
-            parser.set_element_value("datetime_end", f'{date_end.strftime("%Y-%m-%d")}T00:00')
-
-        if parser.check_error() and not parser.update():
-            logger.info(f"Restarting bot, error no orders")
-            try:
-                parser.driver.quit()
-            except Exception as err:
-                pass
-
-            parser.start()
-
-            for filter_ in [
-                ["filter_status", "0"],
-                ["date_field", "0"],
-                ["payment", ""]
-            ]: parser.set_element_value(*filter_)
-            is_marked = False
-            continue
-
-        if not is_marked:
-            is_marked = True
-            order_sender.mark_old_orders(orders=parser.get_orders())
-
-        orders = parser.get_orders()
-        orders = order_sender.process_orders(users, orders)
-        order_sender.send_orders(users, orders)
-
-
 def update_bot_chats():
-    for user in users:
-        user_ = users[user]
-        if user_["rule"] == "admin":
-            for x in range(10):
-                try:
+    temp_users = users.copy()
+    token = db.create_connection()
+    for user in temp_users:
+        user_ = temp_users[user]
+        for x in range(3):
+            try:
+                if user_["rule"] == "admin":
                     message = bot.send_message(user, 'Привет, я перезапускался. Теперь я снова здесь', reply_markup=admin_keyboard)
                     bot.register_next_step_handler(message, admin_panel)
                     break
-                except Exception as err:
-                    print(err)
-                    time.sleep(.3)
-        else:
-            for x in range(10):
-                try:
+                else:
                     message = bot.send_message(user, 'Привет, я перезапускался. Теперь я снова здесь')
                     break
-                except Exception as err:
-                    print(err)
-                    time.sleep(.3)
+            except Exception as err:
+                logger.info(f"Cant send message, {err = }")
+                if "chat not found" in str(err) or "bot was blocked by the user" in str(err):
+                    try:
+                        db.delete_user(token, chat_id=user)
+                        del users[user]
+                        logger.info(f"Removed user {user_}")
+                    except Exception as err:
+                        logger.error(f"Cant remove user {user_}, {err = }")
+                    break
+
+            time.sleep(.15)
+
+    db.commit_connection(token)
+    db.close_connection(token)
+
+
+def main():
+    update_bot_chats()
+    dispatcher_manager = DispatcherManager(bot=bot, users=users)
+    dispatcher_manager.add(Dispatcher(name="Первый Партнер", username='novaPP', password='123456qwerqwe'))
+    #dispatcher_manager.add(Dispatcher(name="Агент такси", username='novagentbb', password='12345nov', company_number=-1))
+
+    dispatcher_manager.start_parsers()
+    dispatcher_manager.start_order_sender()
 
 
 if __name__ == '__main__':
     users = get_users()
-    update_bot_chats()
-    Thread(target=start_order_sender).start()
+    Thread(target=main).start()
     bot.polling(none_stop=True, timeout=123)
