@@ -1,4 +1,6 @@
 import time
+from datetime import datetime, timedelta
+from logging import Formatter, FileHandler
 from multiprocessing.dummy import Pool
 from threading import Thread
 
@@ -123,10 +125,25 @@ class DispatcherManager:
         thread.start()
 
     def update(self):
+        delay = 1
+        temp_time = datetime.now() + timedelta(minutes=delay)
         while True:
+            if temp_time < datetime.now():
+                temp_time = datetime.now() + timedelta(minutes=delay)
+                log_file = f"./logs/logs_{temp_time.strftime('%m.%d.%Y-%H.%M')}.log"
+                logger.info(f"Changed log file to {log_file}")
+                try:
+                    formatter = Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+                    handler = FileHandler(log_file, "w+", "utf-8")
+                    handler.setFormatter(formatter)
+                    logger.handlers[0] = handler
+                except Exception as err:
+                    print(err)
+                    logger.error(f"cant change log file to new, {err = }")
+
             for dispatcher in self.dispatchers:
                 self.orders.extend(dispatcher.fetch_orders())
-            time.sleep(.5)
+            time.sleep(.35)
 
     def start_parsers(self):
         def start():
