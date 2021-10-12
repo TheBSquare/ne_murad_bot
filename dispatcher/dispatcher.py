@@ -40,7 +40,7 @@ class Dispatcher:
                     self.count = 10
                     self.update_time()
                 else:
-                    self.count = 10
+                    self.count -= 1
 
                 if not self.parser.check_error() or not self.parser.update():
                     logger.info(f"{self.name}. Restarting bot, error with website or cookies")
@@ -63,9 +63,11 @@ class Dispatcher:
         while True:
             last_order = self.parser.get_last_order()
             if not last_order is None:
-                date_start = self.parser.set_time_from_order(last_order, "lower", timedelta(minutes=15))
+                date_start = self.parser.set_time_from_order(last_order, "lower", timedelta(minutes=30))
                 date_start = self.parser.set_time_from_order(last_order, "upper", timedelta(days=-3))
                 return
+            else:
+                logger.error(f"Cant change datetime bounds, last order is None")
 
             if wait:
                 logger.info(f"Waiting till first order appears")
