@@ -428,7 +428,7 @@ def register_driver(message):
                 db.commit_connection(token)
                 db.close_connection(token)
 
-                users[chat_id] = {"rule": 'driver', "taxi_id": taxi_id}
+                users[chat_id] = {"rule": 'driver', "taxi_id": taxi_id, "chat_id": chat_id}
                 string = "Успешно добавлено пользователя"
             except Exception as err:
                 string = f"Не получилось добавить пользователя, ошибка {err}"
@@ -512,7 +512,7 @@ def register_admin(message):
                     db.commit_connection(token)
                     db.close_connection(token)
 
-                    users[chat_id] = {"rule": 'admin', "taxi_id": 0, "is_thread": False}
+                    users[chat_id] = {"rule": 'admin', "taxi_id": 0, "is_thread": False, "chat_id": chat_id}
                     string = "Успешно добавлено пользователя"
 
                     keyboard = admin_keyboard1 if users[message.chat.id]["is_thread"] else admin_keyboard
