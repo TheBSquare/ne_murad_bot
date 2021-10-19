@@ -87,7 +87,10 @@ class DispatcherManager:
             logger.error(f"Error while getting data from object, {object_data = }")
 
         try:
-            if not user["is_thread"] or user["rule"] != "admin" and data["licence_plate"] != user["taxi_id"]:
+            if not user["is_thread"] and user["rule"] == "admin":
+                logger.info(f"Cant send message to user {user}")
+                return
+            elif user["rule"] == "driver" and data["licence_plate"] != user["taxi_id"]:
                 logger.info(f"Cant send message to user {user}")
                 return
         except Exception as err:
