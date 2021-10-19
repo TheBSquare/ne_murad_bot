@@ -128,7 +128,7 @@ class DispatcherManager:
         thread.start()
 
     def update(self):
-        delay = 1
+        delay = 60
         temp_time = datetime.now() + timedelta(minutes=delay)
         while True:
             if temp_time < datetime.now():
